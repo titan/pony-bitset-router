@@ -27,7 +27,7 @@ class \nodoc\ _TestRouter is UnitTest
     _assert_router(h, router, "/user/12345678", 0, [("user-id", "12345678")])
     _assert_router(h, router, "/user/12345678/post/87654321", 1, [("user-id", "12345678"); ("post-id", "87654321")])
     _assert_router(h, router, "/profile", 2, [])
-    _assert_router(h, router, "/file/home/user/.bashrc", 3, [("filepath", "/home/user/.bashrc")])
+    _assert_router(h, router, "/file/home/user/.bashrc", 3, [("filepath", "home/user/.bashrc")])
     _assert_router(h, router, "/", 4, [])
     _assert_router(h, router, "/test", None, [])
 

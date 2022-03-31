@@ -20,7 +20,7 @@ rules apply. Given the router `/a/:b`, passing in `/a/foo/bar` will not match,
 because `/bar` has no counterpart in the router.
 
 If we define the route `/a/*b` and pass `/a/foo/bar`, we end up with a named
-param "b" that contains the value "/foo/bar". Wildcard routing rules are useful
+param "b" that contains the value "foo/bar". Wildcard routing rules are useful
 when we dont' know which routes may follow.
 
 ```pony
@@ -148,7 +148,7 @@ class Router
       end
 
       // Extend segments if needed
-      let segment_number = tokens.size() // + if wildcard.size() > 0 then 1 else 0 end
+      let segment_number = tokens.size()
       if segment_number > _segments.size() then
         (let wildcard_base: U128, let terminate_base: U128) =
           try
@@ -179,7 +179,6 @@ class Router
       if wildcard.size() > 0 then
         let pos = tokens.size()
         for segment in Iter[_Segment](_segments.values()).skip(pos) do
-          //segment.dynamic = BitSet.set(segment.dynamic, index)
           segment.wildcard = BitSet.set(segment.wildcard, index)
         end
       end
@@ -280,7 +279,7 @@ class Router
         try
           let part = parts(h._2._1 - 1) ?
           let offset = path.find(part) ?
-          let value = path.substring(offset - 1) // minus 1 to include '/'
+          let value = path.substring(offset)
           captures.push((h._2._4, consume value))
         end
       end
