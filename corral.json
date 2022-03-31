@@ -1,0 +1,12 @@
+{
+  "packages": ["bitset-router"],
+  "deps": [],
+  "info": {
+    "description": "A URL router which focus on speed.",
+    "homepage": "http://github.com/titan/pony-bitset-router",
+    "license": "",
+    "documentation_url": "",
+    "version": "0.1.0",
+    "name": "pony-bitset-router"
+  }
+}
