@@ -1,7 +1,7 @@
 primitive BitSet
   fun set(
     self: U128 val,
-    idx: U8 val)
+    idx: USize val)
   : U128 val =>
     if idx < 128 then
       self or (U128(1) << idx.u128())
@@ -11,7 +11,7 @@ primitive BitSet
 
   fun unset(
     self: U128 val,
-    idx: U8 val)
+    idx: USize val)
   : U128 val =>
     if idx < 128 then
       self and (not (U128(1) << idx.u128()))
@@ -21,7 +21,7 @@ primitive BitSet
 
   fun is_set(
     self: U128 val,
-    idx: U8 val)
+    idx: USize val)
   : Bool val =>
     if idx < 128 then
       (self and (U128(1) << idx.u128())) != 0

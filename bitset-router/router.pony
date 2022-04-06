@@ -35,8 +35,10 @@ actor Main
     router.add("/profile")
     router.add("/file/*filepath")
 
-    match router.find("/user/pony")
-    | (let index: U8 val, let params: Array[(String val, String val)] val) =>
+    let router': val = consume router
+
+    match router'.find("/user/pony")
+    | (let index: USize val, let params: Array[(String val, String val)] val) =>
       for (key, value) in params.values() do
         env.out.print(key + ": " + value)
       end
@@ -48,22 +50,12 @@ actor Main
 use "collections"
 use "itertools"
 
-class _Segment
-  let static: Map[String val, U128]
-  var dynamic: U128
-  var wildcard: U128
-  var terminate: U128
-
-  new create(
-    static': Map[String val, U128] = Map[String val, U128],
-    dynamic': U128 = 0,
-    wildcard': U128 = 0,
-    terminate': U128 = 0)
-  =>
-    static = static'
-    dynamic = dynamic'
-    wildcard = wildcard'
-    terminate = terminate'
+type _Segment is (
+  Map[String val, U128 val] val, // static
+  U128 val, // dynamic
+  U128 val, // wildcard
+  U128 val // terminate
+)
 
 type _Capture is (
   String val, // name
@@ -77,21 +69,21 @@ type _Route is (
   String val // wildcard name
 )
 
-class Router
-  let _segments: Array[_Segment ref] ref
+class val Router
+  let _segments: Array[_Segment] ref
   let _routes: Array[_Route val] ref
 
-  new create()
+  new trn create()
   =>
     """
     Create a new instance of Router.
     """
-    _segments = Array[_Segment ref]
+    _segments = Array[_Segment]
     _routes = Array[_Route val]
 
   fun ref add(
     pattern: String val)
-  : (U8 val | String val) =>
+  : (USize val | String val) =>
     """
     Add new pattern to the router. If success then return the index of route in
     the router, or the error message.
@@ -124,7 +116,7 @@ class Router
       if tokens.size() > 64 then
         return "A single router cannot hold more than 64 segments."
       end
-      let index: U8 val = _routes.size().u8()
+      let index: USize val = _routes.size()
       var rank: U64 = 0
       var wildcard: String = ""
       let captures: Array[_Capture val] trn = recover trn Array[_Capture] end
@@ -153,39 +145,52 @@ class Router
         (let wildcard_base: U128, let terminate_base: U128) =
           try
             let segment' = _segments(_segments.size() - 1)?
-            (segment'.wildcard, segment'.terminate)
+            (segment'._3, segment'._4)
           else
             (U128(0), U128(0))
           end
         repeat
-          _segments.push(_Segment(where wildcard' = wildcard_base, terminate' = terminate_base))
+          _segments.push((recover Map[String val, U128 val] end, U128(0), wildcard_base, terminate_base))
         until segment_number == _segments.size() end
       end
 
       // Set bitset
-      for (token, segment) in Iter[_Token](tokens.values()).zip[_Segment ref](_segments.values()) do
+      for (token, (depth, segment)) in Iter[_Token](tokens.values()).zip[(USize, _Segment)](Iter[_Segment](_segments.values()).enum[USize]()) do
         match token
         | (_PlaceholderToken, _) =>
-          segment.dynamic = BitSet.set(segment.dynamic, index)
+          try
+            _segments(depth)? = (segment._1, BitSet.set(segment._2, index), segment._3, segment._4)
+          end
         | (_WildcardToken, _) =>
-          segment.wildcard = BitSet.set(segment.wildcard, index)
+          try
+            _segments(depth)? = (segment._1, segment._2, BitSet.set(segment._3, index), segment._4)
+          end
         | (_StaticToken, let static: String val) =>
-          let bitset = segment.static.get_or_else(static, 0)
-          segment.static.update(static, BitSet.set(bitset, index))
+          let bitset = segment._1.get_or_else(static, 0)
+          let statics = recover iso segment._1.clone() end // statics
+          statics(static) = BitSet.set(bitset, index)
+
+          try
+            _segments(depth)? = (consume statics, segment._2, segment._3, segment._4)
+          end
         end
       end
 
       // Adjust bitsets for wildcard
       if wildcard.size() > 0 then
         let pos = tokens.size()
-        for segment in Iter[_Segment](_segments.values()).skip(pos) do
-          segment.wildcard = BitSet.set(segment.wildcard, index)
+        for (depth, segment) in Iter[_Segment](_segments.values()).enum[USize]().skip(pos) do
+          try
+            _segments(depth)? = (segment._1, segment._2, BitSet.set(segment._3, index), segment._4)
+          end
         end
       end
 
       // Set terminate flag
-      for segment in Iter[_Segment](_segments.values()).skip(segment_number - 1) do
-          segment.terminate = BitSet.set(segment.terminate, index)
+      for (depth, segment) in Iter[_Segment](_segments.values()).enum[USize]().skip(segment_number - 1) do
+        try
+          _segments(depth)? = (segment._1, segment._2, segment._3, BitSet.set(segment._4, index))
+        end
       end
 
       _routes.push((segment_number, rank, consume captures, wildcard))
@@ -193,9 +198,9 @@ class Router
       index
     end
 
-  fun ref find(
+  fun find(
     path: String val)
-  : ((U8 val, Array[(String val, String val)] val) | None) =>
+  : ((USize val, Array[(String val, String val)] val) | None) =>
     """
     Match a router on the router. If matched, return the index of calling
     `insert` function and captured key-value parameters; if not then just return
@@ -217,10 +222,10 @@ class Router
     var enabled: U128 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
     let captures: Array[(String val, String val)] iso = recover iso Array[(String val, String val)]() end
 
-    for (part, segment) in Iter[String val](parts.values()).zip[_Segment ref](_segments.values()) do
-      var e = segment.dynamic
-      e = BitSet.union(e, segment.static.get_or_else(part, e))
-      e = BitSet.union(e, segment.wildcard)
+    for (part, segment) in Iter[String val](parts.values()).zip[_Segment](_segments.values()) do
+      var e = segment._2 // dynamic
+      e = BitSet.union(e, segment._1.get_or_else(part, e)) // static
+      e = BitSet.union(e, segment._3) // wildcard
       enabled = BitSet.intersect(enabled, e)
     end
 
@@ -228,7 +233,7 @@ class Router
       // Parts length is greater than segments length, so check wildcard
       // patterns.
       try
-        let last_wildcard = _segments(_segments.size() - 1)?.wildcard
+        let last_wildcard = _segments(_segments.size() - 1)?._3 // wildcard
         enabled = BitSet.intersect(enabled, last_wildcard)
       end
     end
@@ -236,7 +241,7 @@ class Router
     if (parts.size() - 1) < _segments.size() then
       try
         let segment = _segments(parts.size() - 1)?
-        enabled = BitSet.intersect(enabled, segment.terminate)
+        enabled = BitSet.intersect(enabled, segment._4 /* terminate */)
       end
     end
 
@@ -244,15 +249,15 @@ class Router
       return None
     end
 
-    let hitted: Iter[(U8 val, _Route val)] = Iter[_Route val](_routes.values())
-      .enum[U8 val]()
-      .filter({(x: (U8 val, _Route val)) =>
-        let idx: U8 val = x._1
+    let hitted: Iter[(USize val, _Route val)] = Iter[_Route val](_routes.values())
+      .enum[USize val]()
+      .filter({(x: (USize val, _Route val)) =>
+        let idx: USize val = x._1
         BitSet.is_set(enabled, idx)
       })
 
     try
-      var h: (U8 val, _Route val) = hitted.next()?
+      var h: (USize val, _Route val) = hitted.next()?
       for h' in hitted do
         if (h'._2._1 == h._2._1) // segment-number
           and (h'._2._2 > h._2._2) // rank
@@ -295,25 +300,25 @@ class Router
     rank: U64)
   : Bool =>
     var enabled: U128 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
-    for (token, segment) in Iter[_Token val](tokens.values()).zip[_Segment ref](_segments.values()) do
-      var e = segment.dynamic
-      e = BitSet.union(e, segment.wildcard)
+    for (token, segment) in Iter[_Token val](tokens.values()).zip[_Segment](_segments.values()) do
+      var e = segment._2 // dynamic
+      e = BitSet.union(e, segment._3 /* wildcard */)
       match token
       | (_StaticToken, let static: String val) =>
-        e = BitSet.union(e, segment.static.get_or_else(static, e))
+        e = BitSet.union(e, segment._1.get_or_else(static, e))
       end
       enabled = BitSet.intersect(enabled, e)
     end
 
-    let hitted: Iter[(U8 val, _Route val)] =
+    let hitted: Iter[(USize val, _Route val)] =
       Iter[_Route val](_routes.values())
-      .enum[U8 val]()
-      .filter({(x: (U8 val, _Route val)) =>
-        let idx: U8 val = x._1
+      .enum[USize val]()
+      .filter({(x: (USize val, _Route val)) =>
+        let idx: USize val = x._1
         BitSet.is_set(enabled, idx)
       })
 
-    hitted.any({(x: (U8 val, _Route val)) =>
+    hitted.any({(x: (USize val, _Route val)) =>
       let same = (not (x._2._4.size() > 0)) xor (wildcard.size() > 0)
       same and (rank == x._2._2)
     })

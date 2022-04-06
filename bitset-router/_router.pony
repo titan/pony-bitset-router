@@ -23,23 +23,25 @@ class \nodoc\ _TestRouter is UnitTest
     router.add("/profile")
     router.add("/file/*filepath")
     router.add("/")
+    let router': Router val = consume router
 
-    _assert_router(h, router, "/user/12345678", 0, [("user-id", "12345678")])
-    _assert_router(h, router, "/user/12345678/post/87654321", 1, [("user-id", "12345678"); ("post-id", "87654321")])
-    _assert_router(h, router, "/profile", 2, [])
-    _assert_router(h, router, "/file/home/user/.bashrc", 3, [("filepath", "home/user/.bashrc")])
-    _assert_router(h, router, "/", 4, [])
-    _assert_router(h, router, "/test", None, [])
+    _assert_router(h, router', "/user/12345678", 0, [("user-id", "12345678")])
+    _assert_router(h, router', "/user/12345678/post/87654321", 1, [("user-id", "12345678"); ("post-id", "87654321")])
+    _assert_router(h, router', "/profile", 2, [])
+    _assert_router(h, router', "/file/home/user/.bashrc", 3, [("filepath", "home/user/.bashrc")])
+    _assert_router(h, router', "/", 4, [])
+    _assert_router(h, router', "/test", None, [])
 
   fun _test_single(
     h: TestHelper)
   =>
     let router = Router
     router.add("/hello/:name")
+    let router': Router val = consume router
 
-    _assert_router(h, router, "/hello/world", 0, [("name", "world")])
-    _assert_router(h, router, "/hello/world/pony", None, [])
-    _assert_router(h, router, "/hello", None, [])
+    _assert_router(h, router', "/hello/world", 0, [("name", "world")])
+    _assert_router(h, router', "/hello/world/pony", None, [])
+    _assert_router(h, router', "/hello", None, [])
 
   fun _test_prefix(
     h: TestHelper)
@@ -48,8 +50,9 @@ class \nodoc\ _TestRouter is UnitTest
     router.add("/hello/world/:name")
     router.add("/hello/pony/")
     router.add("/pony")
+    let router': Router val = consume router
 
-    _assert_router(h, router, "/hello", None, [])
+    _assert_router(h, router', "/hello", None, [])
 
   fun _test_collision(
     h: TestHelper)
@@ -60,7 +63,7 @@ class \nodoc\ _TestRouter is UnitTest
       h.fail("Expect result to be None but got " + err)
     end
     match router0.add("/u/:uid/p/:pid")
-    | let index: U8 val =>
+    | let index: USize val =>
       h.fail("Expect an error but got " + index.string() + " from router 0")
     end
 
@@ -90,7 +93,7 @@ class \nodoc\ _TestRouter is UnitTest
       h.fail("Expect result to be None but got " + err)
     end
     match router3.add("/u/:id/*test")
-    | let index: U8 val =>
+    | let index: USize val =>
       h.fail("Expect an error but got " + index.string() + " from router 3")
     end
 
@@ -110,9 +113,9 @@ class \nodoc\ _TestRouter is UnitTest
 
   fun _assert_router(
     h: TestHelper,
-    router: Router ref,
+    router: Router val,
     path: String val,
-    index: (U8 val | None),
+    index: (USize val | None),
     captures: Array[(String val, String val)] val)
   =>
     let actual = router.find(path)
@@ -121,13 +124,13 @@ class \nodoc\ _TestRouter is UnitTest
       match actual
       | None =>
         None
-      | (let idx: U8 val, let captures': Array[(String val, String val)] val) =>
+      | (let idx: USize val, let captures': Array[(String val, String val)] val) =>
         h.fail("Expect None result but got index: " + idx.string() + " and captures: " + _print_capture_array(captures'))
       end
-    | let index': U8 val =>
+    | let index': USize val =>
       match actual
-      | (let idx: U8 val, let captures': Array[(String val, String val)] val) =>
-        h.assert_eq[U8 val](index', idx)
+      | (let idx: USize val, let captures': Array[(String val, String val)] val) =>
+        h.assert_eq[USize val](index', idx)
         _assert_capture_array_eq(h, captures, captures')
       | None =>
         h.fail("Expect index: " + index'.string() + " and captures: " + _print_capture_array(captures) + ", but got None")
